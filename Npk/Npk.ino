@@ -4,6 +4,15 @@
 #include "ESP8266WiFi.h"
 #include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128 // OLED display width,  in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+
+// declare an SSD1306 display object connected to I2C
+Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 const char* WIFINAME = "Galaxy A30s";
 const char* PASS = "fezk2045";
@@ -43,6 +52,18 @@ void setup() {
   Serial.print(WIFINAME);
   WiFi.begin(WIFINAME, PASS);
 
+  if (!oled.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    while (true);
+  }
+  delay(1000);
+  oled.clearDisplay();
+  oled.setCursor(0,0);
+  oled.setTextSize(2);
+  oled.setTextColor(WHITE);
+  oled.print("Press Button for Crop Suggestion");
+  oled.display();
+
   // Set the baud rate for the SerialSoftware object
   mod.begin(9600);
 
@@ -59,11 +80,11 @@ void setup() {
     delay(100);
     Serial.print(".");
   }
-
+  
   Serial.println();
   Serial.println("WiFi Connected");
-//  Serial.print("IP address: ");
-//  Serial.println(WiFi.localIP());
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
   delay(1000);
 }
 
@@ -75,9 +96,8 @@ void loop() {
   float moisture_percentage;
 
   NPKFunc();
-  moisture_read = analogRead(moisture_sensor);
-  moisture_int = moisture_read / 1024.00;
-  moisture_percentage = 100.00 - (moisture_int * 100);
+  moisture_int = analogRead(moisture_sensor);
+  moisture_percentage = map(moisture_int,0,1023,75,250);
 
   nitro = response[4];
   phos = response[6];
@@ -86,32 +106,26 @@ void loop() {
   float hum = dht.readHumidity();
   float tempC = dht.readTemperature();
 
-  // Print values to the serial monitor
-//  display(nitro, phos, potas, hum, tempC, moisture_percentage);
-  int Signal=digitalRead(D1);
-  Serial.print("Digital value: ");
-  Serial.println(Signal);
-  // as by default digital pin reads high
-//  if (Signal == 0)
-//  {
-//    Status = !Status;
-//  }
+  int Signal=digitalRead(D0);
+  Serial.println("Digit pin:"+String(Signal));
   if (Signal==1)
   {
     Serial.println("Button Pressed");
     if ((WiFi.status() == WL_CONNECTED)) { //Check the current connection status
       WiFiClient client;
       HTTPClient http;
-      String query_api="http://192.168.136.43:8000/api/data/?n="+String(nitro)+"&p="+String(phos)+"&k="+String(potas)+"&t="+String(tempC)+"&h="+String(hum);
-      Serial.println(query_api);
+      String query_api="http://192.168.67.43:8000/api/data/?n="+String(nitro)+"&p="+String(phos)+"&k="+String(potas)+"&t="+String(tempC)+"&h="+String(hum)+"&rain="+String(moisture_percentage);
       http.begin(client,query_api); //Specify the URL
       int httpCode = http.GET();                                        //Make the request
 
       if (httpCode > 0) { //Check for the returning code
 
         String payload = http.getString();
-        Serial.println(httpCode);
+        Serial.print("Suitable Crop to grow: ");
         Serial.println(payload.substring(2,payload.length()-2));
+        display_serial(nitro, phos, potas, hum, tempC, moisture_percentage);
+        display_oled(nitro, phos, potas, hum, tempC, moisture_percentage,payload.substring(2,payload.length()-2));
+        
       }
       else {
         Serial.println("Error on HTTP request");
@@ -121,13 +135,12 @@ void loop() {
     else{
       Serial.println("Wifi Not Connected");
     }
-//    Status = false;
     Signal=0;
   }
   else{
     Serial.println("Button Not Pressed");
   }
-  delay(2000);
+  delay(1000);
 }
 
 void NPKFunc() {
@@ -140,13 +153,10 @@ void NPKFunc() {
     digitalWrite(RE, LOW);
     for (byte i = 0; i < 11; i++) {
       response[i] = mod.read();
-//      Serial.print(response[i], DEC);
-//      Serial.print(" ");
     }
-//    Serial.println();
   }
 }
-void display(byte nitro , byte phos, byte potas, float hum, float tempC, float moisture_percentage){
+void display_serial(byte nitro , byte phos, byte potas, float hum, float tempC, float moisture_percentage){
   Serial.print(F("Nitrogen: "));
   Serial.print(nitro);
   Serial.println(F(" mg/Kg"));
@@ -157,13 +167,109 @@ void display(byte nitro , byte phos, byte potas, float hum, float tempC, float m
   Serial.print(potas);
   Serial.println(F("mg/Kg"));
 
-  Serial.print(F("Soil Moisture(in Percentage) = {phoas}"));
+  Serial.print(F("Soil Moisture(in Percentage) = "));
   Serial.print(moisture_percentage);
   Serial.println(F("%"));
 
-  Serial.print(F(" Humidity: "));
+  Serial.print(F("Humidity: "));
   Serial.print(hum);
   Serial.print(F("%  Temperature: "));
   Serial.print(tempC);
   Serial.println(F("°C "));
+}
+
+void display_oled(byte nitro , byte phos, byte potas, float hum, float tempC, float moisture_percentage, String crop){
+  
+  oled.clearDisplay();
+  oled.setTextSize(2);
+  oled.setTextColor(WHITE);
+  oled.setCursor(0,0);
+  oled.print("Nitrogen:");
+  oled.setCursor(5,18);
+  oled.print(nitro);
+  oled.setTextSize(1);
+  oled.setCursor(43,18);
+  oled.print("mg/Kg");
+  oled.display();
+  delay(2000);
+
+  oled.clearDisplay();
+  oled.setTextSize(2);
+  oled.setTextColor(WHITE);
+  oled.setCursor(0,0);
+  oled.print("Phosphorus:");
+  oled.setCursor(5,18);
+  oled.print(phos);
+  oled.setTextSize(1);
+  oled.setCursor(43,18);
+  oled.print("mg/Kg");
+  oled.display();
+  delay(2000);
+
+  oled.clearDisplay();
+  oled.setTextSize(2);
+  oled.setTextColor(WHITE);
+  oled.setCursor(0,0);
+  oled.print("Potassium:");
+  oled.setCursor(5,18);
+  oled.print(potas);
+  oled.setTextSize(1);
+  oled.setCursor(43,18);
+  oled.print("mg/Kg");
+  oled.display();
+  delay(2000);
+
+  oled.clearDisplay();
+  oled.setTextSize(2);
+  oled.setTextColor(WHITE);
+  oled.setCursor(0,0);
+  oled.print("Moisture:");
+  oled.setCursor(6,18);
+  oled.print(moisture_percentage);
+  oled.setTextSize(2);
+  oled.setCursor(46,18);
+  oled.print("%");
+  oled.display();
+  delay(2000);
+
+  oled.clearDisplay();
+  oled.setTextSize(2);
+  oled.setTextColor(WHITE);
+  oled.setCursor(0,0);
+  oled.print("Temp:");
+  oled.setCursor(6,18);
+  oled.print(tempC);
+  oled.setTextSize(1);
+  oled.setCursor(46,18);
+  oled.print("°C");
+  oled.display();
+  delay(2000);
+
+  oled.clearDisplay();
+  oled.setTextSize(2);
+  oled.setTextColor(WHITE);
+  oled.setCursor(0,0);
+  oled.print("Humidity:");
+  oled.setCursor(6,18);
+  oled.print(hum);
+  oled.setTextSize(2);
+  oled.setCursor(46,18);
+  oled.print("%");
+  oled.display();
+  delay(2000);
+
+  oled.clearDisplay();
+  oled.setTextSize(3);
+  oled.setTextColor(WHITE);
+  oled.setCursor(0,0);
+  oled.print(crop);
+  oled.display();
+  delay(5000);
+  
+  oled.clearDisplay();
+  oled.setCursor(0,0);
+  oled.setTextSize(2);
+  oled.setTextColor(WHITE);
+  oled.print("Press Button for Crop Suggestion");
+  oled.display();
 }
