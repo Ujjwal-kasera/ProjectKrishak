@@ -28,6 +28,8 @@ WiFiServer server(80);
 #define DHTPIN 12 // D6
 #define DHTTYPE DHT11
 
+#define button D0
+
 bool Status = false;
 
 // Connect Soil moisture analog sensor pin to A0 of NodeMCU
@@ -108,7 +110,7 @@ void loop() {
   float hum = dht.readHumidity();
   float tempC = dht.readTemperature();
 
-  int Signal=digitalRead(D0);
+  int Signal=digitalRead(button);
   Serial.println("Digit pin:"+String(Signal));
   if (Signal==1)
   {

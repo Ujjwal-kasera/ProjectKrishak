@@ -1,5 +1,5 @@
 #include <DHT.h>
-#define DHTPIN 2 
+#define DHTPIN D6 
 #define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
 void setup() {
@@ -31,5 +31,5 @@ Serial.print(hicel);
 Serial.print(F("°C "));
 Serial.print(hifrah);
 Serial.println(F("°F"));
-delay(1000);
+delay(3000);
 }
