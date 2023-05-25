@@ -51,7 +51,7 @@ void NPKFunc() {
     digitalWrite(RE, LOW);
     for (byte i = 0; i < 11; i++) {
       response[i] = mod.read();
-      Serial.print(response[i]);
+      Serial.print(response[i],DEC);
       Serial.print(" ");
     }
     Serial.println();
